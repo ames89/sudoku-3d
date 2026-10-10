@@ -149,6 +149,35 @@ body {
   75% { transform: translateX(-3px); }
 }
 
+.viewtoggle {
+  display: flex;
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+  margin-top: 14px;
+}
+
+.canvaswrap {
+  margin-top: 12px;
+  height: min(62vh, 480px);
+  min-height: 340px;
+  background: #0b0e12;
+  border-radius: 12px;
+  overflow: hidden;
+  touch-action: none;
+  position: relative;
+}
+
+.cubehint {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 8px 2px 0;
+}
+
+.axisseg { flex: 0 1 150px; }
+.axisseg .seg { padding: 10px 6px; }
+
 .modestack {
   display: flex;
   align-items: center;

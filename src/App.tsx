@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   EMPTY,
   FLAG,
@@ -9,6 +9,7 @@ import {
   type CellMark,
   type Puzzle,
 } from "./game";
+const CubeView = lazy(() => import("./CubeView"));
 import "./App.css";
 
 type Status = "playing" | "won" | "lost";
@@ -29,6 +30,7 @@ function fmtTime(sec: number): string {
 }
 
 export default function App() {
+  const [view, setView] = useState<"2d" | "3d">("2d");
   const [size, setSize] = useState(7);
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const [marks, setMarks] = useState<CellMark[]>([]);
@@ -232,6 +234,21 @@ export default function App() {
         </div>
       </header>
 
+      <div className="viewtoggle" role="group" aria-label="view">
+        <button className={view === "2d" ? "seg on" : "seg"} onClick={() => setView("2d")}>
+          ▦ 2D Board
+        </button>
+        <button className={view === "3d" ? "seg on" : "seg"} onClick={() => setView("3d")}>
+          ◈ 3D Cube
+        </button>
+      </div>
+
+      {view === "3d" ? (
+        <Suspense fallback={<div className="loading">Loading 3D…</div>}>
+          <CubeView />
+        </Suspense>
+      ) : (
+      <>
       <div className="statbar">
         <div className="stat">
           <span className="k">Flags</span>
@@ -400,6 +417,8 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
