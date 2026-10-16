@@ -289,5 +289,6 @@ export function autoXCells3D(size: number, regions: number[][][], at: Coord): nu
 }
 
 export function regionColor3D(rid: number, total: number): string {
-  return `hsl(${Math.round((rid * 360) / total)} 65% 62%)`;
+  const hue = Math.round((rid * 360) / total);
+  return `hsl(${hue}, 65%, 62%)`;
 }
