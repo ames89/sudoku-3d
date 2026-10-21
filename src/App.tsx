@@ -44,6 +44,10 @@ export default function App() {
   const [errorIdx, setErrorIdx] = useState<number | null>(null);
   const [generating, setGenerating] = useState(false);
   const errorTimer = useRef<number | undefined>(undefined);
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const dragStart = useRef<{ r: number; c: number } | null>(null);
+  const dragEnd = useRef<{ r: number; c: number } | null>(null);
+  const [dragCells, setDragCells] = useState<Set<number>>(new Set());
 
   const newGame = useCallback((n: number) => {
     setGenerating(true);
@@ -59,6 +63,9 @@ export default function App() {
         setHistory([]);
         setStatus("playing");
         setErrorIdx(null);
+        setDragCells(new Set());
+        dragStart.current = null;
+        dragEnd.current = null;
       } finally {
         setGenerating(false);
       }
@@ -139,6 +146,45 @@ export default function App() {
     errorTimer.current = window.setTimeout(() => setErrorIdx(null), 600);
   }
 
+
+  function getCellFromEvent(e: React.PointerEvent<HTMLButtonElement>, i: number): { r: number; c: number } {
+    if (!puzzle) return { r: 0, c: 0 };
+    const n = puzzle.size;
+    const r = Math.floor(i / n);
+    const c = i % n;
+    return { r, c };
+  }
+
+  function getCellFromPointer(e: React.PointerEvent<HTMLDivElement>): { r: number; c: number } | null {
+    if (!puzzle || !boardRef.current) return null;
+    const rect = boardRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const n = puzzle.size;
+    const cellW = rect.width / n;
+    const cellH = rect.height / n;
+    const c = Math.floor(x / cellW);
+    const r = Math.floor(y / cellH);
+    if (r < 0 || r >= n || c < 0 || c >= n) return null;
+    return { r, c };
+  }
+
+  function computeDragCells(s?: { r: number; c: number } | null, end?: { r: number; c: number } | null) {
+    if (!puzzle) return new Set<number>();
+    const n = puzzle.size;
+    if (!s || !end) return new Set<number>();
+    const sr = Math.min(s.r, end.r);
+    const er = Math.max(s.r, end.r);
+    const sc = Math.min(s.c, end.c);
+    const ec = Math.max(s.c, end.c);
+    const set = new Set<number>();
+    for (let r = sr; r <= er; r++) {
+      for (let c = sc; c <= ec; c++) {
+        set.add(r * n + c);
+      }
+    }
+    return set;
+  }
   function handleCell(i: number, forceFlag = false) {
     if (!puzzle || status !== "playing" || generating) return;
     const cur = marks[i];
@@ -202,6 +248,9 @@ export default function App() {
     setHistory([]);
     setStatus("playing");
     setErrorIdx(null);
+    setDragCells(new Set());
+    dragStart.current = null;
+    dragEnd.current = null;
   }
 
   function hint() {
@@ -293,10 +342,63 @@ export default function App() {
           <div className="loading">Generating puzzle…</div>
         ) : (
           <div
+            ref={boardRef}
             className="board"
             style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}
             role="grid"
             aria-label={`${n} by ${n} puzzle`}
+            onPointerDown={(e) => {
+              if (status !== "playing" || generating) return;
+              const c = getCellFromPointer(e);
+              if (!c) return;
+              dragStart.current = c;
+              dragEnd.current = c;
+              setDragCells(computeDragCells(c, c));
+              (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+              if (!dragStart.current) return;
+              const c = getCellFromPointer(e);
+              if (!c) return;
+              dragEnd.current = c;
+              setDragCells(computeDragCells(dragStart.current, c));
+            }}
+            onPointerUp={(e) => {
+              if (!dragStart.current) return;
+              const cells = computeDragCells(dragStart.current, dragEnd.current);
+              if (cells.size > 0) {
+                const changes: Change[] = [];
+                for (const idx of cells) {
+                  const cur = marks[idx];
+                  if (cur === mode) continue;
+                  if (mode === MARK_X && cur === EMPTY) {
+                    changes.push({ idx, prev: cur, next: MARK_X });
+                  } else if (mode === FLAG) {
+                    if (cur === FLAG) continue;
+                    if (cur === MARK_X) {
+                      changes.push({ idx, prev: cur, next: EMPTY });
+                    } else {
+                      changes.push({ idx, prev: cur, next: FLAG });
+                    }
+                  }
+                }
+                if (changes.length > 0) applyChanges(changes);
+              }
+              dragStart.current = null;
+              dragEnd.current = null;
+              setDragCells(new Set());
+              (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+            }}
+            onPointerLeave={(e) => {
+              if (dragStart.current) {
+                dragStart.current = null;
+                dragEnd.current = null;
+                setDragCells(new Set());
+                try {
+                  (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+                } catch {}
+              }
+            }}
           >
             {marks.map((m, i) => {
               const r = Math.floor(i / n);
@@ -313,7 +415,8 @@ export default function App() {
                     "cell" +
                     (m === FLAG ? " is-flag" : "") +
                     (conflicts.has(i) ? " is-conflict" : "") +
-                    (errorIdx === i ? " is-error" : "")
+                    (errorIdx === i ? " is-error" : "") +
+                    (dragCells.has(i) ? " is-drag" : "")
                   }
                   style={{
                     background: regionColor(rid, n),
