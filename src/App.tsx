@@ -381,8 +381,19 @@ export default function App() {
                     if (marks[idx] === EMPTY) {
                       changes.push({ idx, prev: EMPTY, next: MARK_X });
                       working[idx] = MARK_X;
+                    } else if (cells.size === 1 && marks[idx] === MARK_X) {
+                      // simple click on marked cell toggles it off
+                      changes.push({ idx, prev: MARK_X, next: EMPTY });
+                      working[idx] = EMPTY;
                     }
                   } else {
+                    if (marks[idx] === FLAG) {
+                      if (cells.size === 1) {
+                        changes.push({ idx, prev: FLAG, next: EMPTY });
+                        working[idx] = EMPTY;
+                      }
+                      continue;
+                    }
                     const ch = placeFlag(idx, working);
                     if (ch === null) {
                       wrong = true; // one heart per gesture, even across cells
