@@ -177,7 +177,7 @@ export default function App() {
     return set;
   }
   // Shared flag placement. Mutates `working`; returns changes, or null if wrong cell.
-  function placeFlag(idx: number, working: CellMark[]): Change[] {
+  function placeFlag(idx: number, working: CellMark[]): Change[] | null {
     const cur = working[idx];
     if (cur === FLAG) return [];
     if (!puzzle!.solutionSet.has(idx)) return null;
