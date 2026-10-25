@@ -176,6 +176,28 @@ export default function App() {
     }
     return set;
   }
+  // Shared flag placement. Mutates `working`; returns changes, or null if wrong cell.
+  function placeFlag(idx: number, working: CellMark[]): Change[] {
+    const cur = working[idx];
+    if (cur === FLAG) return [];
+    if (!puzzle!.solutionSet.has(idx)) return null;
+    const changes: Change[] = [{ idx, prev: cur, next: FLAG }];
+    working[idx] = FLAG;
+    for (const ax of autoXFor(idx, working)) {
+      changes.push(ax);
+      working[ax.idx] = MARK_X;
+    }
+    return changes;
+  }
+
+  function loseHeart(flashIdx: number | null) {
+    if (flashIdx !== null) flashError(flashIdx);
+    const left = hearts - 1;
+    setHearts(left);
+    setMistakes((m) => m + 1);
+    if (left <= 0) setStatus("lost");
+  }
+
   function handleCell(i: number, forceFlag = false) {
     if (!puzzle || status !== "playing" || generating) return;
     const cur = marks[i];
@@ -194,26 +216,16 @@ export default function App() {
       applyChanges([{ idx: i, prev: cur, next: EMPTY }]);
       return;
     }
-    if (!puzzle.solutionSet.has(i)) {
+    const working = marks.slice();
+    const changes = placeFlag(i, working);
+    if (changes === null) {
       // Wrong cell -> lose heart, don't place.
-      flashError(i);
-      const left = hearts - 1;
-      setHearts(left);
-      setMistakes((m) => m + 1);
-      if (left <= 0) setStatus("lost");
+      loseHeart(i);
       return;
     }
-    const changes: Change[] = [{ idx: i, prev: cur, next: FLAG }];
-    const preview = marks.slice();
-    preview[i] = FLAG;
-    for (const ax of autoXFor(i, preview)) {
-      changes.push(ax);
-      preview[ax.idx] = MARK_X;
-    }
-    applyChanges(changes);
+    if (changes.length > 0) applyChanges(changes);
     // Win check: all solution cells flagged.
-    const flagged = preview.filter((m) => m === FLAG).length;
-    if (flagged === puzzle.size) setStatus("won");
+    if (working.filter((m) => m === FLAG).length === puzzle.size) setStatus("won");
   }
 
   function undo() {
@@ -335,7 +347,10 @@ export default function App() {
           <div
             ref={boardRef}
             className="board"
-            style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}
+            style={{
+              gridTemplateColumns: `repeat(${n}, 1fr)`,
+              gridTemplateRows: `repeat(${n}, 1fr)`,
+            }}
             role="grid"
             aria-label={`${n} by ${n} puzzle`}
             onPointerDown={(e) => {
@@ -359,21 +374,27 @@ export default function App() {
               const cells = computeDragCells(dragStart.current, dragEnd.current);
               if (cells.size > 0) {
                 const changes: Change[] = [];
+                const working = marks.slice();
+                let wrong = false;
                 for (const idx of cells) {
-                  const cur = marks[idx];
-                  if (cur === mode) continue;
-                  if (mode === MARK_X && cur === EMPTY) {
-                    changes.push({ idx, prev: cur, next: MARK_X });
-                  } else if (mode === FLAG) {
-                    if (cur === FLAG) continue;
-                    if (cur === MARK_X) {
-                      changes.push({ idx, prev: cur, next: EMPTY });
-                    } else {
-                      changes.push({ idx, prev: cur, next: FLAG });
+                  if (mode === MARK_X) {
+                    if (marks[idx] === EMPTY) {
+                      changes.push({ idx, prev: EMPTY, next: MARK_X });
+                      working[idx] = MARK_X;
+                    }
+                  } else {
+                    const ch = placeFlag(idx, working);
+                    if (ch === null) {
+                      wrong = true; // one heart per gesture, even across cells
+                    } else if (ch.length > 0) {
+                      changes.push(...ch);
                     }
                   }
                 }
+                if (wrong) loseHeart(null);
                 if (changes.length > 0) applyChanges(changes);
+                if (working.filter((m) => m === FLAG).length === puzzle.size && !wrong)
+                  setStatus("won");
               }
               dragStart.current = null;
               dragEnd.current = null;
