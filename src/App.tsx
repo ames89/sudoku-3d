@@ -47,6 +47,8 @@ export default function App() {
   const boardRef = useRef<HTMLDivElement | null>(null);
   const dragStart = useRef<{ r: number; c: number } | null>(null);
   const dragEnd = useRef<{ r: number; c: number } | null>(null);
+  const lastTap = useRef<{ idx: number; at: number } | null>(null);
+  const lastGestureAt = useRef(0);
   const [dragCells, setDragCells] = useState<Set<number>>(new Set());
 
   const newGame = useCallback((n: number) => {
@@ -199,6 +201,8 @@ export default function App() {
   }
 
   function handleCell(i: number, forceFlag = false) {
+    // Synthetic click after a handled pointer gesture must not re-run (double heart loss / cleared mark).
+    if (forceFlag !== true && performance.now() - lastGestureAt.current < 350) return;
     if (!puzzle || status !== "playing" || generating) return;
     const cur = marks[i];
     // Tap placed mark/flag -> clear.
@@ -354,6 +358,7 @@ export default function App() {
             role="grid"
             aria-label={`${n} by ${n} puzzle`}
             onPointerDown={(e) => {
+              if (e.button !== 0) return;
               if (status !== "playing" || generating) return;
               const c = getCellFromPointer(e);
               if (!c) return;
@@ -372,6 +377,24 @@ export default function App() {
             onPointerUp={(e) => {
               if (!dragStart.current) return;
               const cells = computeDragCells(dragStart.current, dragEnd.current);
+              lastGestureAt.current = performance.now();
+              // Double-tap = force flag (replaces click/dblclick on touch devices).
+              if (cells.size === 1) {
+                const idx = [...cells][0];
+                const prev = lastTap.current;
+                if (prev && prev.idx === idx && performance.now() - prev.at < 400) {
+                  lastTap.current = null;
+                  dragStart.current = null;
+                  dragEnd.current = null;
+                  setDragCells(new Set());
+                  try {
+                    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+                  } catch {}
+                  handleCell(idx, true);
+                  return;
+                }
+                lastTap.current = { idx, at: performance.now() };
+              }
               if (cells.size > 0) {
                 const changes: Change[] = [];
                 const working = marks.slice();
