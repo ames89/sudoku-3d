@@ -146,15 +146,6 @@ export default function App() {
     errorTimer.current = window.setTimeout(() => setErrorIdx(null), 600);
   }
 
-
-  function getCellFromEvent(e: React.PointerEvent<HTMLButtonElement>, i: number): { r: number; c: number } {
-    if (!puzzle) return { r: 0, c: 0 };
-    const n = puzzle.size;
-    const r = Math.floor(i / n);
-    const c = i % n;
-    return { r, c };
-  }
-
   function getCellFromPointer(e: React.PointerEvent<HTMLDivElement>): { r: number; c: number } | null {
     if (!puzzle || !boardRef.current) return null;
     const rect = boardRef.current.getBoundingClientRect();
